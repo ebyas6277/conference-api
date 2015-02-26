@@ -1,135 +1,77 @@
-﻿// Import the Modules installed to our server
 var express = require('express');
+var path = require('path');
+var favicon = require('serve-favicon');
+var logger = require('morgan');
+var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
-
-// Start the Express web framework
-var app = express();
-
-// Configure app
-app.use(bodyParser());
-
-// Where the application will run
-var port = process.env.PORT || 8080;
-
-// Import Mongoose
 var mongoose = require('mongoose');
 
-// Connect to our database
-mongoose.connect('mongodb://127.0.0.1/conference');
+// Setup routes
+var routes = require('./server/routes/index');
+var users = require('./server/routes/users');
+var speakers = require('./server/routes/speakers');
 
-// Start the Node Server
-app.listen(port);
-console.log('Magic happens on port ' + port);
-
-var Speaker = require('./server/models/speaker');
-
-
-
-// Defining the Routes for our API
-
-// Start the router
-var router = express.Router();
-
-// A simple middleware to use for all Routes and Requests
-router.use(function(req, res, next) {    
-    // Give some message on the console
-    console.log('An action was performed by the server.');
-
-    // It's very important to use the next() function. Without this the route stops here.
-    next();
+// Database configuration
+var config = require('./server/config/config.js');
+// Connect to the database
+mongoose.connect(config.url);
+// Check if MongoDB is running
+mongoose.connection.on('error', function () {
+    console.error('MongoDB Connection Error. Make sure MongoDB is running.');
 });
 
-// Default message when accessing the API folder through the browser
-router.get('/', function(req, res) {
-    // Give some Hello there message
-    res.json({ message: 'Hello SPA, the API is working!' });
+var app = express();
+
+// view engine setup
+app.set('views', path.join(__dirname, 'server/views'));
+app.set('view engine', 'ejs');
+
+// uncomment after placing your favicon in /public
+//app.use(favicon(__dirname + '/public/favicon.ico'));
+app.use(logger('dev'));
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.use('/', routes);
+app.use('/users', users);
+app.use('/api/speakers', speakers);
+
+// catch 404 and forward to error handler
+app.use(function(req, res, next) {
+    var err = new Error('Not Found');
+    err.status = 404;
+    next(err);
 });
 
-// When accessing the speakers Routes, create a speaker when the method passed is POST
-router.route('/speakers').post(function(req, res) {
-    // Create a new instance of the Speaker model
-    var speaker = new Speaker();
+// error handlers
 
-    // Set the speakers properties (comes from the request)
-    speaker.name = req.body.name;
-    speaker.company = req.body.company;
-    speaker.title = req.body.title;
-    speaker.description = req.body.description;
-    speaker.picture = req.body.picture;
-    speaker.schedule = req.body.schedule;
-
-    // Save the data received
-    speaker.save(function(err) {
-        if(err) {
-            res.send(err);
-        }
-
-        // Give success message
-        res.json({ message: 'Speaker successfully created!' });
-    });
-});
-
-router.route('/speakers').get(function(req, res) {
-    // Get all the speakers when a method passed is Get
-    Speaker.find(function(err, speakers) {
-        if(err) {
-            res.send(err);
-        }
-
-        res.json(speakers);
-    });
-});
-
-// Accessing speaker route by id
-router.route('/speakers/:speaker_id').get(function(req, res) {
-    // Get the speaker by id
-    Speaker.findById(req.params.speaker_id, function(err, speaker) {
-        if(err) {
-            res.send(err);
-        }
-
-        res.json(speaker);
-    });
-});
-
-// Update the speaker by id
-router.route('/speakers/:speaker_id').put(function(req, res) {
-    Speaker.findById(req.params.speaker_id, function(err, speaker) {
-        if(err) {
-            res.send(err);
-        }
-
-        // Set the speaker properties (comes from the request)
-        speaker.name = req.body.name;
-        speaker.company = req.body.company;
-        speaker.title = req.body.title;
-        speaker.description = req.body.description;
-        speaker.picture = req.body.picture;
-        speaker.schedule = req.body.schedule;
-
-        // Save the data received
-        speaker.save(function(err) {
-            if(err) {
-                res.send(err);
-            }
-
-            // Give success message
-            res.json({ message: 'Speaker successfully updated!' });
+// development error handler
+// will print stacktrace
+if (app.get('env') === 'development') {
+    app.use(function(err, req, res, next) {
+        res.status(err.status || 500);
+        res.render('error', {
+            message: err.message,
+            error: err
         });
     });
-});
+}
 
-// Delete the speaker by id
-router.route('/speakers/:speaker_id').delete(function(req, res) {
-    Speaker.remove({ _id: req.params.speaker_id }, function(err, speaker) {
-        if(err) {
-            res.send(err);
-        }
-
-        // Give success message
-        res.json({ message: 'Speaker successfully deleted!' });
+// production error handler
+// no stacktraces leaked to user
+app.use(function(err, req, res, next) {
+    res.status(err.status || 500);
+    res.render('error', {
+        message: err.message,
+        error: {}
     });
 });
 
-//Register the routes
-app.use('/api', router);
+module.exports = app;
+
+app.set('port', process.env.PORT || 3000);
+var server = app.listen(app.get('port'), function () {
+    console.log('Express server listening on port ' + server.address().port);
+});
